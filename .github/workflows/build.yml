@@ -1,0 +1,75 @@
+
+name: Build Aurora Visualiser
+
+on:
+  push:
+    paths:
+      - 'Aurora-Visualiser-CrossPlatform.zip'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Unpack Aurora project
+        run: unzip -o Aurora-Visualiser-CrossPlatform.zip
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK
+        run: gradle -p AuroraVisualiser assembleDebug
+
+      - name: Save APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aurora-Android-APK
+          path: AuroraVisualiser/app/build/outputs/apk/debug/*.apk
+
+  windows:
+    name: Build Windows app
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Unpack Aurora project
+        run: Expand-Archive -Path Aurora-Visualiser-CrossPlatform.zip -DestinationPath .
+        shell: pwsh
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish Windows app
+        run: dotnet publish AuroraVisualiser/WindowsAurora/WindowsAurora.csproj -c Release -r win-x64 --self-contained true -o AuroraWindowsBuild
+        shell: pwsh
+
+      - name: Package Windows app
+        run: Compress-Archive -Path AuroraWindowsBuild/* -DestinationPath Aurora-Windows.zip
+        shell: pwsh
+
+      - name: Save Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aurora-Windows
+          path: Aurora-Windows.zip
