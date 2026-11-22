@@ -23,17 +23,19 @@ jobs:
       - name: Unpack Aurora project
         run: unzip -o Aurora-Visualiser-CrossPlatform.zip
 
-      - name: Align Java and Kotlin versions
+      - name: Fix Android project
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          file = Path("AuroraVisualiser/app/build.gradle.kts")
-          content = file.read_text()
+          gradle = Path("AuroraVisualiser/app/build.gradle.kts")
+          content = gradle.read_text()
 
-          content = content.replace(
-              "    compileSdk = 35\n",
-              """    compileSdk = 35
+          if "sourceCompatibility" not in content:
+              content = content.replace(
+                  "    compileSdk = 35",
+                  """    compileSdk = 35
+
               compileOptions {
                   sourceCompatibility = JavaVersion.VERSION_17
                   targetCompatibility = JavaVersion.VERSION_17
@@ -41,11 +43,51 @@ jobs:
 
               kotlinOptions {
                   jvmTarget = "17"
-              }
-          """
-          )
+              }"""
+              )
 
-          file.write_text(content)
+          if "androidx.core:core-ktx" not in content:
+              content += """
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.15.0")
+          }
+          """
+
+          gradle.write_text(content)
+
+          source = Path(
+              "AuroraVisualiser/app/src/main/java/com/aurora/visualiser/MainActivity.kt"
+          )
+          code = source.read_text()
+
+          fixes = {
+              "sin(x*.12+k*1.3)*h*.12f":
+                  "sin(x*.12+k*1.3).toFloat()*h*.12f",
+
+              "cos(x*.055+k)*h*.08f":
+                  "cos(x*.055+k).toFloat()*h*.08f",
+
+              "sin(x*.045)*bands[i]*h*.38f":
+                  "sin(x*.045).toFloat()*bands[i]*h*.38f",
+
+              "sin(x*.012)*h*.05f":
+                  "sin(x*.012).toFloat()*h*.05f",
+
+              "sin(x*.07+k*2)*h*.13f":
+                  "sin(x*.07+k*2).toFloat()*h*.13f",
+
+              "cos(x*.025+k)*h*.08f":
+                  "cos(x*.025+k).toFloat()*h*.08f"
+          }
+
+          for old, new in fixes.items():
+              if old not in code:
+                  raise SystemExit("Could not find expected code: " + old)
+              code = code.replace(old, new)
+
+          source.write_text(code)
+          print("Android fixes applied successfully.")
           PY
 
       - name: Set up Java
